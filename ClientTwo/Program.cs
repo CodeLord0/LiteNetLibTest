@@ -1,38 +1,78 @@
-﻿using LiteNetLib;
+﻿using System.Diagnostics.Tracing;
+using System.Net.NetworkInformation;
+using System.Runtime.InteropServices.Marshalling;
+using LiteNetLib;
 using LiteNetLib.Utils;
-EventBasedNetListener listener = new EventBasedNetListener();
-NetManager client = new NetManager(listener);
+EventBasedNetListener listener = new ();
+NetDataWriter writer = new ();
+NetManager client = new(listener);
+NetPeer? serverPeer = null;
+
+string input = "";
+
+//NetPeer? peer = null;
 client.Start();
-client.Connect("localhost" /* host IP or name */, 9050 /* port */, "SomeConnectionKey" /* text key or NetDataWriter */);
+client.Connect("figure-liberia.gl.at.ply.gg" /* host IP or name */, 10389 /* port */, "SomeConnectionKey" /* text key or NetDataWriter */);
+
+
+listener.PeerConnectedEvent += peer =>
+{
+    serverPeer = peer;
+
+   
+};
+
 
 listener.NetworkReceiveEvent += (fromPeer, dataReader, deliveryMethod, channel) =>
 {
-    Console.WriteLine("We got: {0}", dataReader.GetString(100 /* max length of string */));
-    NetDataWriter writer = new NetDataWriter();
-
-
-    writer.Put($"We got : {dataReader.GetString(100 /*max length of string */)}");
+    //peer = fromPeer;
+    Console.WriteLine("We got: " + dataReader.GetString(200 /* max length of string */));
 
     dataReader.Recycle();
-
-
-
+    
 };
 
 
 
 while (true)
 {
-
-
     client.PollEvents();
-    Thread.Sleep(15);
-
     if (Console.KeyAvailable)
     {
-        var key = Console.ReadKey(true).Key;
+        var key = Console.ReadKey(false).Key; // non-blocking
+
+        if (key == ConsoleKey.Enter)
+        {
+
+
+            writer.Put(input);
+            serverPeer.Send(writer, DeliveryMethod.ReliableSequenced);
+            writer.Reset();
+            System.Console.WriteLine(input);
+            input = "";
+
+
+            //Console.WriteLine();
+        }
+        else
+        {
+            input += (char)key;
+        }
+
+        if (key == ConsoleKey.Backspace)
+        {
+            input = input[..^1];
+        }
+
+
         if (key == ConsoleKey.Escape)
-            System.Console.WriteLine("client has stopped");
+        {
             client.Stop();
+        }
+
+
     }
+    Thread.Sleep(15);
+
 }
+
