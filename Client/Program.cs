@@ -6,20 +6,23 @@ using LiteNetLib.Utils;
 EventBasedNetListener listener = new ();
 NetDataWriter writer = new ();
 NetManager client = new(listener);
-NetPeer? serverPeer = null;
+string input = "";
+Console.Write("Enter a spicy name: ");
+string name = Console.ReadLine();
+//NetPeer? serverPeer = null;
 
 client.Start();
-client.Connect("figure-liberia.gl.at.ply.gg" /* host IP or name */, 10389 /* port */, "SomeConnectionKey" /* text key or NetDataWriter */);
+var serverPeer = client.Connect("figure-liberia.gl.at.ply.gg" /* host IP or name */, 10389 /* port */, "SomeConnectionKey" /* text key or NetDataWriter */);
 
 listener.PeerConnectedEvent += peer =>
 {
-    serverPeer = peer;
+    //serverPeer = peer;
 };
 
 
 listener.NetworkReceiveEvent += (fromPeer, dataReader, deliveryMethod, channel) =>
 {
-    Console.WriteLine("We got: " + dataReader.GetString(200 /* max length of string */));
+    Console.WriteLine(dataReader.GetString(200 /* max length of string */));
     dataReader.Recycle();
 };
 
@@ -34,11 +37,12 @@ while (true)
 
         if (key == ConsoleKey.Enter)
         {
-            writer.Put(input);
+            writer.Put(name + ": " + input);
             serverPeer.Send(writer, DeliveryMethod.ReliableSequenced);
             writer.Reset();
             System.Console.WriteLine(input);
             input = "";
+
         }
 
         else
@@ -60,4 +64,3 @@ while (true)
     Thread.Sleep(15);
 
 }
-

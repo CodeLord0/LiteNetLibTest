@@ -9,7 +9,10 @@ EventBasedNetListener listener = new (); // listens for evens that happen in the
 NetManager server = new (listener);
 NetDataWriter writer = new();
 Dictionary<int, NetPeer?> clientPeers = new(); // stores all the connected clients
+                                               // server display name
 string? peerMessage = null;
+bool nameShown = true;
+
 
 //acts as the server, central hub;
 server.Start(5615 /* port */); // server should listen for a connection on specified port
@@ -26,9 +29,10 @@ listener.ConnectionRequestEvent += request => // lambda function that subscirbes
 
 listener.PeerConnectedEvent += peer => // to represent the client
 {
+    //NetDataReader tempName = null;
     clientPeers.Add(peer.Id,peer);
-    Console.WriteLine("We got connection: from a client!");  // Show peer IP             
-    writer.Put("Hello Client!, This is from server");// Put some string
+  // Show peer IP             
+    writer.Put("Hello Client!, This is from server" );// Put some string    
     peer.Send(writer, DeliveryMethod.ReliableOrdered);  // Send with reliability
     writer.Reset();
 };
@@ -42,9 +46,31 @@ listener.PeerDisconnectedEvent += (peer, info) =>
 
 listener.NetworkReceiveEvent += (fromPeer, dataReader, deliveryMethod, channel) =>
 {
-    writer.Put($"We got: {dataReader.GetString()}");
     peerMessage = dataReader.GetString();
-    dataReader.Recycle();   
+    Console.WriteLine(peerMessage + " "+ "joined the server");
+    dataReader.Recycle();
+
+    if (nameShown)
+    {
+        foreach (var client in clientPeers.Values)
+        {
+            writer.Put(peerMessage + " "+ "joined the server");
+            client.Send(writer, DeliveryMethod.ReliableSequenced);
+            Console.WriteLine(peerMessage);
+
+            //if (key == ConsoleKey.Backspace)
+            //{              
+            //peerMessage = peerMessage[..^1];
+            //}
+
+        }
+        nameShown = false;
+        peerMessage = null;
+        dataReader.Recycle();
+ 
+        //peerMessage = dataReader.get;
+    }
+
 
 };
 
@@ -58,13 +84,7 @@ while (true)
     server.PollEvents();
 
 
-    // if (Console.KeyAvailable)
-    // {
-    //     var key = Console.ReadKey(false).Key; // non-blocking
 
-    //     //if (key == ConsoleKey.Enter)
-    //     //{
-    // }
     if (peerMessage != null)
     {
         foreach (var client in clientPeers.Values)
@@ -74,23 +94,23 @@ while (true)
             client.Send(writer, DeliveryMethod.ReliableSequenced);
             Console.WriteLine(peerMessage);
 
-            if (key == ConsoleKey.Backspace)
-            {              
-                peerMessage = peerMessage[..^1];
-            }
+            //if (key == ConsoleKey.Backspace)
+            //{              
+                //peerMessage = peerMessage[..^1];
+            //}
 
         }
         peerMessage = null;
         writer.Reset();
 
-        else if (key == ConsoleKey.Escape)
-        {
-            server.Stop();
-        }
-        else
-        {
-            input += (char)key;
-        }
+        // else if (key == ConsoleKey.Escape)
+        // {
+        //     server.Stop();
+        // }
+        // else
+        // {
+        //     input += (char)key;
+        // }
 
         Thread.Sleep(15);
 
