@@ -4,16 +4,14 @@ using System.Net.Security;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System.Collections.Generic;
-
+using System.Collections.Concurrent;
 EventBasedNetListener listener = new (); // listens for evens that happen in the network
 NetManager server = new (listener);
 NetDataWriter writer = new();
-Dictionary<int, NetPeer?> clientPeers = new(); // stores all the connected clients
+Dictionary<int, NetPeer> clientPeers = new(); // stores all the connected clients
                                                // server display name
 string? peerMessage = null;
 bool nameShown = true;
-
-
 //acts as the server, central hub;
 server.Start(5615 /* port */); // server should listen for a connection on specified port
 
@@ -29,9 +27,10 @@ listener.ConnectionRequestEvent += request => // lambda function that subscirbes
 
 listener.PeerConnectedEvent += peer => // to represent the client
 {
-    //NetDataReader tempName = null;
-    clientPeers.Add(peer.Id,peer);
-  // Show peer IP             
+    System.Console.WriteLine(peer);
+    nameShown = true;
+    clientPeers.Add(peer.Id, peer);
+    //clientPeers.Add(peer.Id,peer);            
     writer.Put("Hello Client!, This is from server" );// Put some string    
     peer.Send(writer, DeliveryMethod.ReliableOrdered);  // Send with reliability
     writer.Reset();
@@ -47,32 +46,35 @@ listener.PeerDisconnectedEvent += (peer, info) =>
 listener.NetworkReceiveEvent += (fromPeer, dataReader, deliveryMethod, channel) =>
 {
     peerMessage = dataReader.GetString();
-    Console.WriteLine(peerMessage + " "+ "joined the server");
+    //Console.WriteLine(peerMessage + " "+ "joined the server");
     dataReader.Recycle();
-
-    if (nameShown)
-    {
-        foreach (var client in clientPeers.Values)
-        {
-            writer.Put(peerMessage + " "+ "joined the server");
-            client.Send(writer, DeliveryMethod.ReliableSequenced);
-            Console.WriteLine(peerMessage);
-
-            //if (key == ConsoleKey.Backspace)
-            //{              
-            //peerMessage = peerMessage[..^1];
-            //}
-
-        }
-        nameShown = false;
-        peerMessage = null;
-        dataReader.Recycle();
- 
-        //peerMessage = dataReader.get;
-    }
-
-
 };
+
+    // if (nameShown)
+    // {
+    //     foreach (var client in clientPeers.Values)
+    //     {
+    //         writer.Put(peerMessage + " " + "joined the server");
+    //         client.Send(writer, DeliveryMethod.ReliableSequenced);
+    //         Console.WriteLine(peerMessage);
+
+    //         // if (key == ConsoleKey.Backspace)
+    //         // {              
+    //         // peerMessage = peerMessage[..^1];
+    //         // }
+
+    //     }
+    //     //dataReader.Recycle();
+    //     writer.Reset();
+    //     nameShown = false;
+    //     peerMessage = null;
+
+ 
+    //     //peerMessage = dataReader.get;
+    // }
+
+
+// };
 
 
 
@@ -102,6 +104,7 @@ while (true)
         }
         peerMessage = null;
         writer.Reset();
+        
 
         // else if (key == ConsoleKey.Escape)
         // {

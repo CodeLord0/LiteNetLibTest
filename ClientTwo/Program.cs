@@ -7,22 +7,41 @@ EventBasedNetListener listener = new ();
 NetDataWriter writer = new ();
 NetManager client = new(listener);
 string input = "";
-Console.Write("Enter a spicy name: ");
-string name = Console.ReadLine();
+string name;
+//Console.Write("Enter a spicy name: ");
+while (true)
+{
+    try
+    {
+        System.Console.WriteLine("Enter a spicy name: ");
+        name = Console.ReadLine();
+        break;
+    }
+    catch (Exception e)
+    {
+        Console.WriteLine("Error" + e);
+        Console.WriteLine("Enter a spicy name: ");
+
+    }
+}
+
+
 //NetPeer? serverPeer = null;
 
 client.Start();
 var serverPeer = client.Connect("figure-liberia.gl.at.ply.gg" /* host IP or name */, 10389 /* port */, "SomeConnectionKey" /* text key or NetDataWriter */);
 
+
 listener.PeerConnectedEvent += peer =>
 {
-    writer.Put(name);
-    serverPeer.Send(writer, DeliveryMethod.ReliableSequenced);
+   // writer.Put(name);
+    //serverPeer.Send(writer, DeliveryMethod.ReliableSequenced);
 };
 
 
 listener.NetworkReceiveEvent += (fromPeer, dataReader, deliveryMethod, channel) =>
 {
+    
     Console.WriteLine(dataReader.GetString(200 /* max length of string */));
     dataReader.Recycle();
 };
@@ -37,7 +56,7 @@ while (true)
 
         if (key == ConsoleKey.Enter)
         {
-            
+
             writer.Put(name + ": " + input);
             serverPeer.Send(writer, DeliveryMethod.ReliableSequenced);
             writer.Reset();
@@ -62,6 +81,8 @@ while (true)
         }
 
     }
+
+
     Thread.Sleep(15);
 
 }
