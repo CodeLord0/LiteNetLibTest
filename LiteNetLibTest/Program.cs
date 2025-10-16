@@ -4,158 +4,88 @@ using System.Net.Security;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 EventBasedNetListener listener = new (); // listens for evens that happen in the network
-NetManager server = new (listener);
-NetDataWriter writer = new();
+
+NetManager server = new (listener); // central hub of the server
+
+NetDataWriter writer = new(); // method where packets (data) are put into to be sent
+
 Dictionary<int, NetPeer> clientPeers = new(); // stores all the connected clients
-                                               // server display name
-string? peerMessage = null;
-bool nameShown = true;
-//acts as the server, central hub;
+
+string? peerMessage = null; // message server will send to client
+
 server.Start(5615 /* port */); // server should listen for a connection on specified port
 
 
 listener.ConnectionRequestEvent += request => // lambda function that subscirbes listener to request
 {
     if (server.ConnectedPeersCount < 10 /* max connections */) // only allows max number of clients
+
         request.AcceptIfKey("SomeConnectionKey"); // the key the server expects fromthe server
     else
+
         request.Reject(); // if request is not expected key requect client request        
 };
 
 
-listener.PeerConnectedEvent += peer => // to represent the client
+listener.PeerConnectedEvent += peer => // represent the last connected  client
 {
-    System.Console.WriteLine(peer);
-    nameShown = true;
-    clientPeers.Add(peer.Id, peer);
-    //clientPeers.Add(peer.Id,peer);            
-    writer.Put("Hello Client!, This is from server" );// Put some string    
+    System.Console.WriteLine(peer); // displays the ip of the connected peer, mainly for debugging
+
+    clientPeers.Add(peer.Id, peer); // add the connected client to the dictionary
+          
+    writer.Put("Hello Client!, This is from server" );// stores the data to be sent in the writer class
+
+    peer.Send(writer, DeliveryMethod.ReliableOrdered); // send the message to the server
+
+    writer.Reset(); // delete the packet the writer is holding
+};
+
+
+listener.PeerDisconnectedEvent += (peer, info) => // when a peer leaves the server
+{
+    clientPeers.Remove(peer.Id); // removes peer from the client dictionary
+
+    Console.WriteLine("We lost connection from a client");
+
     peer.Send(writer, DeliveryMethod.ReliableOrdered);  // Send with reliability
-    writer.Reset();
 };
 
-listener.PeerDisconnectedEvent += (peer, info) =>
+
+listener.NetworkReceiveEvent += (fromPeer, dataReader, deliveryMethod, channel) => // when the server receives a packet
 {
-    clientPeers.Remove(peer.Id);
-    Console.WriteLine("We lost connection from a client");  // Show peer IP
-    peer.Send(writer, DeliveryMethod.ReliableOrdered);  // Send with reliability
+    peerMessage = dataReader.GetString(); // gets the packet sent by the client and stores it into the peerMessage
+
+    dataReader.Recycle(); // equivalent of a garbage collector
 };
-
-listener.NetworkReceiveEvent += (fromPeer, dataReader, deliveryMethod, channel) =>
-{
-    peerMessage = dataReader.GetString();
-    //Console.WriteLine(peerMessage + " "+ "joined the server");
-    dataReader.Recycle();
-};
-
-    // if (nameShown)
-    // {
-    //     foreach (var client in clientPeers.Values)
-    //     {
-    //         writer.Put(peerMessage + " " + "joined the server");
-    //         client.Send(writer, DeliveryMethod.ReliableSequenced);
-    //         Console.WriteLine(peerMessage);
-
-    //         // if (key == ConsoleKey.Backspace)
-    //         // {              
-    //         // peerMessage = peerMessage[..^1];
-    //         // }
-
-    //     }
-    //     //dataReader.Recycle();
-    //     writer.Reset();
-    //     nameShown = false;
-    //     peerMessage = null;
-
- 
-    //     //peerMessage = dataReader.get;
-    // }
-
-
-// };
-
-
-
-
 
 
 while (true)
 {
-    server.PollEvents();
+    server.PollEvents(); //re-run all events
 
-
-
-    if (peerMessage != null)
+    if (peerMessage != null) // if peerMessage has a data in it
     {
-        foreach (var client in clientPeers.Values)
+
+        foreach (var client in clientPeers.Values) // represent each individual client in the dictionary
         {
 
-            writer.Put(peerMessage);
-            client.Send(writer, DeliveryMethod.ReliableSequenced);
-            Console.WriteLine(peerMessage);
+            writer.Put(peerMessage); // places data in writer ready to be disributed
 
-            //if (key == ConsoleKey.Backspace)
-            //{              
-                //peerMessage = peerMessage[..^1];
-            //}
+            client.Send(writer, DeliveryMethod.ReliableSequenced); // send the data to all the clients in the dictionary
+
+            Console.WriteLine(peerMessage); // writes the message that was sent(mainly for debugging)
 
         }
-        peerMessage = null;
-        writer.Reset();
-        
 
-        // else if (key == ConsoleKey.Escape)
-        // {
-        //     server.Stop();
-        // }
-        // else
-        // {
-        //     input += (char)key;
-        // }
+        peerMessage = null; // reset peer message
 
-        Thread.Sleep(15);
+        writer.Reset(); // clear the writer method
+
+        Thread.Sleep(15); // code should sleep to prevent excessive cpu usage
 
 
     }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    Thread.Sleep(15);
 }
-
-
-
