@@ -1,85 +1,107 @@
-﻿using System.Diagnostics.Tracing;
-using System.Net.NetworkInformation;
-using System.Runtime.InteropServices.Marshalling;
+using System;
+using System.Threading;
+using System.Net;
+using System.Net.Sockets;
 using LiteNetLib;
 using LiteNetLib.Utils;
-EventBasedNetListener listener = new();
-NetDataWriter writer = new();
-NetManager client = new(listener);
-string input = "";
-string name;
 
-while (true)
+namespace LightweightChat
 {
-
-    try
+    public class ChatMessage
     {
-        System.Console.WriteLine("Enter a spicy name: ");
-        name = Console.ReadLine();
-        break;
-    }
-    catch (Exception e)
-    {
-        Console.WriteLine("Error" + e);
-        Console.WriteLine("Enter a spicy name: ");
+        public string? Text { get; set; }
     }
 
-}
-
-client.Start();
-var serverPeer = client.Connect("figure-liberia.gl.at.ply.gg" /* host IP or name */, 10389 /* port */, "SomeConnectionKey" /* text key or NetDataWriter */);
-
-
-listener.PeerConnectedEvent += peer =>
-{
-
-};
-
-listener.NetworkReceiveEvent += (fromPeer, dataReader, deliveryMethod, channel) =>
-{
-    Console.WriteLine(dataReader.GetString(200 /* max length of string */));
-
-    dataReader.Recycle();
-};
-
-
-while (true)
-{
-    client.PollEvents();
-
-    if (Console.KeyAvailable)
+    class Program : INetEventListener
     {
-        var key = Console.ReadKey(false).Key; // non-blocking
+        private NetManager _client;
+        private NetPacketProcessor _packetProcessor;
+        private NetPeer? _serverPeer;
 
-        if (key == ConsoleKey.Enter)
+        static void Main(string[] args)
         {
-
-            writer.Put(name + ": " + input);
-            serverPeer.Send(writer, DeliveryMethod.ReliableSequenced);
-            writer.Reset();
-            System.Console.WriteLine(input);
-            input = "";
-
+            new Program().Run();
         }
 
-        else
+        public void Run()
         {
-            input += (char)key;
+            _packetProcessor = new NetPacketProcessor();
+            _client = new NetManager(this);
+            _client.Start();
+
+            Console.WriteLine("Connecting to server...");
+            _client.Connect("127.0.0.1", 9050, "chat_key");
+
+            _packetProcessor.SubscribeReusable<ChatMessage>(OnMessageReceived);
+
+            while (true)
+            {
+                _client.PollEvents();
+
+                if (_serverPeer != null && Console.KeyAvailable)
+                {
+                    string? text = Console.ReadLine();
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        var msg = new ChatMessage { Text = text };
+
+                        //manual serilization for comptibility
+                        var writer = new NetDataWriter();
+                        _packetProcessor.Write(writer, msg);
+                        _serverPeer.Send(writer, DeliveryMethod.ReliableOrdered);
+                    }
+                }
+
+                Thread.Sleep(15);
+            }
         }
 
-        if (key == ConsoleKey.Backspace)
+        // --- LiteNetLib event handlers ---
+
+        public void OnPeerConnected(NetPeer peer)
         {
-            input = input[..^1];
+            _serverPeer = peer;
+            Console.WriteLine("Connected to server!");
         }
 
-        if (key == ConsoleKey.Escape)
+        public void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
         {
-            client.Stop();
-            break;
+            Console.WriteLine("Disconnected from server");
+            _serverPeer = null;
         }
 
+        public void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
+        {
+            try
+            {
+                _packetProcessor.ReadAllPackets(reader);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error reading packet: {ex.Message}");
+            }
+        }
+
+        public void OnNetworkError(IPEndPoint endPoint, SocketError socketError)
+        {
+            Console.WriteLine($"Network error: {socketError}");
+        }
+
+        public void OnNetworkReceiveUnconnected(IPEndPoint remoteEndPoint, NetPacketReader reader, UnconnectedMessageType messageType) { }
+
+        public void OnNetworkLatencyUpdate(NetPeer peer, int latency) { }
+
+       //Just for because this version requires this.....
+        public void OnConnectionRequest(ConnectionRequest request)
+        {
+            // Clients don’t accept incoming connections but I'm sure you know that
+            request.Reject();
+        }
+
+        // --- Chat message handler ---
+        private void OnMessageReceived(ChatMessage message)
+        {
+            Console.WriteLine($"{message.Text}");
+        }
     }
-
-    Thread.Sleep(15);
-
 }
